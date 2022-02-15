@@ -398,17 +398,21 @@ impl AuroraRunner {
         }
     }
 
-    pub fn view_call(&self, args: ViewCallArgs) -> Result<TransactionStatus, VMError> {
+    pub fn view_call(&mut self, args: ViewCallArgs) -> Result<TransactionStatus, VMError> {
         let input = args.try_to_vec().unwrap();
         let mut runner = self.one_shot();
         runner.context.view_config = Some(ViewConfig {
             max_gas_burnt: u64::MAX,
         });
         let (outcome, maybe_error) = runner.call("view", "viewer", input);
-        Ok(
+        let status =
             TransactionStatus::try_from_slice(&Self::bytes_from_outcome(outcome, maybe_error)?)
-                .unwrap(),
-        )
+                .unwrap();
+        if let Some(standalone) = self.standalone_runner.as_mut() {
+            let standalone_status = standalone.view_call(args);
+            assert_eq!(standalone_status, status);
+        }
+        Ok(status)
     }
 
     pub fn profiled_view_call(
